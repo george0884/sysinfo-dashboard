@@ -10,7 +10,7 @@ Copia y pega los siguientes comandos en tu terminal (Termux o Linux):
 
 ### 1. Clonar el repositorio
 ```bash
-git clone [https://github.com/george0884/sysinfo-dashboard](https://github.com/george0884/sysinfo-dashboard)
+git clone (https://github.com/george0884/sysinfo-dashboard)
 ```
 Dar permisos de ejecución
 Navega a la carpeta y otorga los permisos necesarios al script:
