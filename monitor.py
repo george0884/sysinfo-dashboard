@@ -1,57 +1,52 @@
 #!/usr/bin/env python3
 import psutil, os, time, socket, platform, sys
 
-# Colores y comandos de control de terminal
+# Colores estilo KDE Neon
 C = {
-    'hdr': '\033[1;34m', 'lbl': '\033[1;36m', 'val': '\033[0;37m', 
-    'bar': '\033[0;32m', 'dim': '\033[2;37m', 'rst': '\033[0m',
-    'home': '\033[H', 'clear': '\033[J' # HOME mueve el cursor al inicio, CLEAR limpia lo que sobra
+    'h': '\033[1;34m', 'l': '\033[1;36m', 'v': '\033[0;37m', 
+    'b': '\033[0;32m', 'd': '\033[2;37m', 'r': '\033[0m',
+    'top': '\033[H', 'clean': '\033[J'
 }
 
-def get_uptime():
-    try:
-        with open('/proc/uptime', 'r') as f:
-            seconds = float(f.readline().split()[0])
-        return f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}m"
-    except: return "N/A"
-
-def draw_bar(pct, width=15):
+def draw_bar(pct, w=12): # Barras más cortas para que no se corten en el celu
     pct = max(0, min(100, pct or 0))
-    fill = int(pct * width / 100)
-    return f"{C['dim']}[{C['bar']}{'█' * fill}{C['dim']}{'░' * (width - fill)}]{C['rst']} {C['val']}{pct:3.0f}%"
+    f = int(pct * w / 100)
+    return f"{C['d']}[{C['b']}{'█' * f}{C['d']}{'░' * (w - f)}]{C['r']} {C['v']}{pct:3.0f}%"
 
 def main():
-    # Limpiamos la pantalla UNA SOLA VEZ al empezar
     os.system('clear')
-    print('\033[?25l', end="") # Ocultar el cursor para que no parpadee
-    
+    print('\033[?25l', end="") # Oculta el cursor
     try:
         while True:
-            cores = psutil.cpu_percent(interval=0.5, percpu=True)
-            ram = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
+            # Obtener datos (percpu=True es vital para ver todos los cores)
+            try:
+                cpus = psutil.cpu_percent(interval=0.5, percpu=True)
+            except:
+                cpus = [psutil.cpu_percent()]
             
-            # El secreto: Volver al inicio de la pantalla (\033[H) en lugar de imprimir líneas nuevas
-            out = [C['home'] + f"{C['hdr']}SISTEMA:{C['rst']} {platform.system()} {platform.release()}"]
-            out.append(f"{C['hdr']}Host:{C['rst']}    {socket.gethostname()}")
-            out.append(f"{C['hdr']}Uptime:{C['rst']}  {get_uptime()}")
-            
-            out.append(f"\n{C['lbl']}CPU CORES:{C['rst']}")
-            for i, p in enumerate(cores):
-                out.append(f"  Core {i:<2}: {draw_bar(p)}")
+            mem = psutil.virtual_memory()
+            uptime = "".join(os.popen("uptime -p").readlines()).replace("up ", "")
 
-            out.append(f"\n{C['lbl']}RECURSOS:{C['rst']}")
-            out.append(f"  RAM:  {draw_bar(ram.percent)} {ram.used/1e9:.1f}GB")
-            out.append(f"  DISK: {draw_bar(disk.percent)} {disk.used/1e9:.1f}GB")
-
-            out.append(f"\n{C['dim']}{'-'*40}\n[Ctrl+C] para salir{C['rst']}\033[J")
+            # Construir salida fija
+            out = [C['top'] + f"{C['h']}SISTEMA:{C['r']} {platform.release()}"]
+            out.append(f"{C['h']}HOST:   {C['r']} {socket.gethostname()}")
+            out.append(f"{C['h']}UPTIME: {C['r']} {uptime.strip()}")
             
-            # Imprimir todo de un solo golpe
+            out.append(f"\n{C['l']}CPU CORES:{C['r']}")
+            for i, p in enumerate(cpus):
+                # Esto asegura que si tenés muchos cores, no se vaya de pantalla
+                if i < 8: 
+                    out.append(f" Core {i}: {draw_bar(p)}")
+
+            out.append(f"\n{C['l']}RECURSOS:{C['r']}")
+            out.append(f" RAM:  {draw_bar(mem.percent)} {mem.used/1e9:.1f}GB")
+            
+            out.append(f"\n{C['d']}{'-'*30}\n[Ctrl+C] Salir\033[J")
+            
             sys.stdout.write("\n".join(out))
             sys.stdout.flush()
-            
     except KeyboardInterrupt:
-        print('\033[?25h' + "\n\nMonitor cerrado.") # Mostrar el cursor de nuevo al salir
+        print('\033[?25h' + "\nCerrado.")
 
 if __name__ == "__main__":
     main()
