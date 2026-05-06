@@ -49,17 +49,40 @@ CPU_MODEL=$(grep 'model name' /proc/cpuinfo 2>/dev/null | head -1 | cut -d: -f2 
 CPU_CORES=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo "?")
 
 # CPU stat previo
-CPU_STAT_OK=false
-[[ -r /proc/stat ]] && CPU_STAT_OK=true
-$CPU_STAT_OK && CPU_PREV=$(awk '/^cpu /{print $2,$3,$4,$5,$6,$7,$8; exit}' /proc/stat)
+#CPU_STAT_OK=false
+#[[ -r /proc/stat ]] && CPU_STAT_OK=true
+#$CPU_STAT_OK && CPU_PREV=$(awk '/^cpu /{print $2,$3,$4,$5,$6,$7,$8; exit}' /proc/stat)
+
+# Para obtener el uso de cada core individualmente
+cores_count=$(grep -c ^processor /proc/cpuinfo)
+for ((i=0; i<$cores_count; i++)); do
+    # Calcula el uso por cada core (puedes usar mpstat si está disponible o parsear /proc/stat)
+    usage=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
+    echo "Core $i: $usage%"
+done
+
+# Leer la temperatura del sistema (dividido por 1000 para obtener grados celsius)
+if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
+    temp_raw=$(cat /sys/class/thermal/thermal_zone0/temp)
+    temp_c=$(echo "scale=1; $temp_raw / 1000" | bc)
+    echo "Temperatura CPU: ${temp_c}°C"
+else
+    echo "Temperatura: N/A"
+fi
 
 # ── Funciones ─────────────────────────────────────────────────────────────────
-barra() {
-    local pct=$1 ancho=$2
-    (( pct < 0   )) && pct=0
-    (( pct > 100 )) && pct=100
-    local relleno=$(( pct * ancho / 100 ))
-    local vacio=$(( ancho - relleno ))
+#barra() {
+ #   local pct=$1 ancho=$2
+  #  (( pct < 0   )) && pct=0
+   # (( pct > 100 )) && pct=100
+    #local relleno=$(( pct * ancho / 100 ))
+    #local vacio=$(( ancho - relleno ))
+    # Obtener RAM en GB con 2 decimales
+ram_total=$(free -m | awk '/Mem:/ { printf("%.2f", $2/1024) }')
+ram_used=$(free -m | awk '/Mem:/ { printf("%.2f", $3/1024) }')
+
+echo "Memoria: ${ram_used}GB / ${ram_total}GB"
+
     local color
     if   (( pct >= 90 )); then color=$R
     elif (( pct >= 70 )); then color=$Y
