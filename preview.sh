@@ -157,4 +157,18 @@ while true; do
     div
 
     # MEMORIA
-    printf '%s▸ MEMORIA%s\n' "$BOLD
+    printf '%s▸ MEMORIA%s\n' "$BOLD$Y" "$NC"
+    fila_barra "RAM" "$RAM_PCT" "$RAM_USA_GB/$RAM_TOT_GB GB"
+    div
+
+    # DISCO
+    printf '%s▸ DISCO%s\n' "$BOLD$Y" "$NC"
+    fila_barra "/" "$DSK_PCT" "$DSK_USA/$DSK_TOT MB"
+    div
+
+    printf '  %sq%s salir  %s·%s  refresco %s%ds%s\n' "$W" "$NC" "$D" "$NC" "$W" "$INTERVALO" "$NC"
+    printf '\033[J'
+
+    IFS= read -r -s -n1 -t "$INTERVALO" key 2>/dev/null
+    [[ "$key" == "q" || "$key" == "Q" ]] && salir
+done
