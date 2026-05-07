@@ -172,7 +172,7 @@ while true; do
 
     # DISCO
     printf '%s▸ DISCO%s\n' "$BOLD$Y" "$NC"
-    fila_barra "/" "$DSK_PCT" "$DSK_USA/$DSK_TOT MB"
+    fila_barra "/" "$DSK_PCT" "$DSK_USA/$DSK_TOT GB"
     div
 
     printf '  %sq%s salir  %s·%s  refresco %s%ds%s\n' "$W" "$NC" "$D" "$NC" "$W" "$INTERVALO" "$NC"
