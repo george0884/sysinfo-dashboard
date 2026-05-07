@@ -1,7 +1,6 @@
 #!/bin/bash
 # =============================================================================
-#  sysinfo.sh — Dashboard tiempo real | Termux/Android + Linux
-#  Estado: Código Unificado y Saneado
+# sysinfo.sh — Dashboard tiempo real | Termux/Android + Linux
 # =============================================================================
 
 # Colores
@@ -68,7 +67,7 @@ campo() {
 }
 
 fila_barra() {
-    local label=$1 pct=$2 extra=$3
+    local label="$1" pct="$2" extra="$3"
     printf '  %s%-16s%s ' "$C" "$label" "$NC"
     barra "$pct" "$BAR_W"
     printf ' %s%3d%%%s' "$W" "$pct" "$NC"
@@ -79,19 +78,18 @@ fila_barra() {
 get_temp() {
     if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
         local v; v=$(cat /sys/class/thermal/thermal_zone0/temp)
-        local g=$(awk "BEGIN{printf \"%.1f\", $v/1000}")
-        echo -e "$g°C"
+        awk -v t="$v" 'BEGIN{printf "%.1f°C", t/1000}'
     else
-        echo -e "N/A"
+        echo "N/A"
     fi
 }
 
 get_uptime() {
-    awk '{printf "%dd %dh %dm", $1/86400, ($1%86400)/3600, ($1%3600)/60}' /proc/uptime
+    awk '{printf "%dd %dh %dm", $1/86400, ($1%86400)/3600, ($1%3600)/60}' /proc/uptime 2>/dev/null || echo "N/A"
 }
 
 get_disco() {
-    df -k / 2>/dev/null | awk 'NR==2{printf "%d %d %d", $2/1024, $3/1024, $5}'
+    df -k / 2>/dev/null | awk 'NR==2{printf "%d %d %d", $2/1024, $3/1024, $5}' || echo "0 0 0"
 }
 
 # ── Configuración inicial ─────────────────────────────────────────────────────
@@ -112,7 +110,7 @@ while true; do
     RAM_USA_GB=$(awk '/MemTotal/ {t=$2} /MemAvailable/ {a=$2; printf "%.2f", (t-a)/1024/1024}' /proc/meminfo)
     RAM_PCT=$(awk '/MemTotal/ {t=$2} /MemAvailable/ {a=$2; printf "%d", (t-a)*100/t}' /proc/meminfo)
     UPTIME=$(get_uptime)
-    LOAD=$(awk '{print $1" "$2" "$3}' /proc/loadavg)
+    LOAD=$(awk '{print $1" "$2" "$3}' /proc/loadavg 2>/dev/null || echo "N/A")
     TEMP=$(get_temp)
     read -r DSK_TOT DSK_USA DSK_PCT <<< "$(get_disco)"
     NOW=$(date '+%H:%M:%S')
@@ -141,12 +139,15 @@ while true; do
     for i in "${!STAT_1[@]}"; do
         read -r core_id u1 n1 s1 i1 io1 ir1 is1 <<< "${STAT_1[$i]}"
         read -r _ u2 n2 s2 i2 io2 ir2 is2 <<< "${STAT_2[$i]}"
+        
         prev_idle=$((i1 + io1))
         curr_idle=$((i2 + io2))
         prev_total=$((u1 + n1 + s1 + i1 + io1 + ir1 + is1))
         curr_total=$((u2 + n2 + s2 + i2 + io2 + ir2 + is2))
+        
         diff_total=$((curr_total - prev_total))
         diff_idle=$((curr_idle - prev_idle))
+        
         if (( diff_total > 0 )); then
             usage=$(( 100 * (diff_total - diff_idle) / diff_total ))
         else
