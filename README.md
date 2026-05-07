@@ -27,7 +27,7 @@ sudo ./sysinfo.sh
 comando en cadena
 
 ```bash
-git clone https://github.com/george0884/sysinfo-dashboard && cd sysinfo-dashboard && chmod+x sysinfo.sh && sudo ./sysinfo.sh
+git clone https://github.com/george0884/sysinfo-dashboard && cd sysinfo-dashboard && chmod +x sysinfo.sh && sudo ./sysinfo.sh
 ```
 
 📋 Requisitos Previos
