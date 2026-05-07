@@ -21,14 +21,19 @@ cd sysinfo-dashboard && sudo chmod +x sysinfo.sh
 
 Inicia el monitor con el siguiente comando:
 ```bash
-sudo ./sysinfo.sh
+./sysinfo.sh
 ```
 
 comando en cadena
 
 ```bash
-git clone https://github.com/george0884/sysinfo-dashboard && cd sysinfo-dashboard && chmod +x sysinfo.sh && sudo ./sysinfo.sh
+git clone https://github.com/george0884/sysinfo-dashboard && cd sysinfo-dashboard && chmod +x sysinfo.sh && ./sysinfo.sh
 ```
+verificar actualización.
+```bash
+git pull origin master && git pull
+```
+
 
 Fallo de cierre Paquetes faltantes: En algunos sistemas Linux mínimos o Termux, podrías necesitar procps:
 
