@@ -134,25 +134,35 @@ while true; do
 
     # CPU
    # Mostrar cada core individual
-    # --- BLOQUE CPU CORREGIDO ---
+# --- BLOQUE CPU DINÁMICO (Línea 195 aprox) ---
     printf '%s▸ CPU%s  %s%s%s\n' "$BOLD$Y" "$NC" "$D" "$CPU_MODEL" "$NC"
     campo "Temp CPU" "$TEMP"
 
-    while read -r line; do
-        if [[ $line =~ ^cpu[0-9]+ ]]; then
-            core_id=$(echo "$line" | awk '{print $1}')
+    # Captura instantánea 1
+    mapfile -t STAT_1 < <(grep '^cpu[0-9]' /proc/stat)
+    sleep 0.2 
+    # Captura instantánea 2 (tras breve espera para ver el diferencial)
+    mapfile -t STAT_2 < <(grep '^cpu[0-9]' /proc/stat)
 
-            # Usamos LC_NUMERIC=C para forzar que los decimales usen punto (.) y no coma (,)
-            # Calculamos el uso restando el idle del total
-            usage=$(awk -v core="$core_id" 'LC_NUMERIC=C $1 == core {total=$2+$3+$4+$5+$6+$7+$8; idle=$5; if(total>0) printf "%.0f", 100*(1-idle/total)}' /proc/stat)
+    for i in "${!STAT_1[@]}"; do
+        read -r core_id u1 n1 s1 i1 io1 ir1 is1 <<< "${STAT_1[$i]}"
+        read -r _ u2 n2 s2 i2 io2 ir2 is2 <<< "${STAT_2[$i]}"
 
-            # Si por algún motivo sale vacío, asegurar que sea 0
-            [[ -z "$usage" ]] && usage=0
+        prev_idle=$((i1 + io1))
+        curr_idle=$((i2 + io2))
+        prev_total=$((u1 + n1 + s1 + i1 + io1 + ir1 + is1))
+        curr_total=$((u2 + n2 + s2 + i2 + io2 + ir2 + is2))
 
-            # Dibujar la fila del core
-            fila_barra "$core_id" "$usage" ""
+        diff_total=$((curr_total - prev_total))
+        diff_idle=$((curr_idle - prev_idle))
+        
+        if (( diff_total > 0 )); then
+            usage=$(( 100 * (diff_total - diff_idle) / diff_total ))
+        else
+            usage=0
         fi
-    done < /proc/stat
+        fila_barra "$core_id" "$usage" ""
+    done
     div
 
     # MEMORIA
