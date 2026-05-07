@@ -17,7 +17,7 @@ BOLD=$'\033[1m'
 HIDE=$'\033[?25l'
 SHOW=$'\033[?25h'
 
-INTERVALO=2
+INTERVALO=1
 
 # ── Salir limpio ──────────────────────────────────────────────────────────────
 salir() {
@@ -37,6 +37,9 @@ BAR_W=$(( COLS - 38 ))
 (( BAR_W > 30 )) && BAR_W=30
 
 # ── Datos estáticos ───────────────────────────────────────────────────────────
+# Inicializar arrays para los cores
+declare -a CPU_CORES_PREV
+declare -a CPU_CORES_CURR
 OS=$(grep '^PRETTY_NAME' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"')
 [[ -z "$OS" ]] && OS="$(uname -o 2>/dev/null || uname -s)"
 KERNEL=$(uname -r)
@@ -51,8 +54,11 @@ CPU_CORES=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null 
 # CPU stat previo
 CPU_STAT_OK=false
 [[ -r /proc/stat ]] && CPU_STAT_OK=true
-$CPU_STAT_OK && CPU_PREV=$(awk '/^cpu /{print $2,$3,$4,$5,$6,$7,$8; exit}' /proc/stat)
 
+if [ "$CPU_STAT_OK" = true ]; then
+    # Carga inicial para tener datos de comparación
+    mapfile -t CPU_CORES_PREV < <(grep '^cpu[0-9]' /proc/stat)
+fi
 # ── Funciones ─────────────────────────────────────────────────────────────────
 barra() {
     local pct=$1 ancho=$2
@@ -65,11 +71,15 @@ barra() {
     elif (( pct >= 70 )); then color=$Y
     else                       color=$G
     fi
-    printf '%s[%s%s' "$D" "$NC" "$color"
-    local i; for (( i=0; i<relleno; i++ )); do printf '█'; done
+
+    # Cambiamos el separador inicial para dar espacio
+    printf '%s ' "$D"
+    printf '%s%s' "$NC" "$color"
+    # Usamos un bloque un poco más delgado si preferís, o mantenés el █ pero con espacios
+    local i; for (( i=0; i<relleno; i++ )); do printf '┃'; done
     printf '%s' "$D"
-    for (( i=0; i<vacio;   i++ )); do printf '░'; done
-    printf '%s]%s' "$D" "$NC"
+    for (( i=0; i<vacio;   i++ )); do printf ' '; done # Espacio vacío en lugar de ░
+    printf '%s│%s' "$D" "$NC"
 }
 
 # Línea horizontal que se adapta al ancho del terminal
@@ -92,7 +102,8 @@ campo() {
 # Fila de barra: etiqueta + barra + porcentaje en una línea
 fila_barra() {
     local label="$1" pct=$2 extra="$3"
-    printf '  %s%-16s%s ' "$C" "$label" "$NC"
+    # Forzamos 12 caracteres para la etiqueta y agregamos un separador "┊"
+    printf '  %s%-12s%s ┊' "$C" "$label" "$NC"
     barra "$pct" "$BAR_W"
     printf ' %s%3d%%%s' "$W" "$pct" "$NC"
     [[ -n "$extra" ]] && printf ' %s%s%s' "$D" "$extra" "$NC"
@@ -100,12 +111,15 @@ fila_barra() {
 }
 
 calc_cpu() {
-    read -r pu ps pn pi pw px py <<< "$1"
-    read -r cu cs cn ci cw cx cy <<< "$2"
-    local dt=$(( (cu+cs+cn+ci+cw+cx+cy) - (pu+ps+pn+pi+pw+px+py) ))
-    local di=$(( (ci+cw) - (pi+pw) ))
-    (( dt <= 0 )) && echo 0 && return
-    echo $(( 100*(dt-di)/dt ))
+    # Usamos awk para asegurar que solo procesamos números y evitar errores de sintaxis
+    local uso=$(awk -v prev="$1" -v curr="$2" 'BEGIN {
+        split(prev, p); split(curr, c);
+        for(i=1; i<=7; i++) { dt += (c[i]-p[i]); }
+        di = (c[4]+c[5]) - (p[4]+p[5]);
+        if (dt <= 0) printf "0";
+        else printf "%d", 100*(dt-di)/dt;
+    }')
+    echo "$uso"
 }
 
 get_temp() {
@@ -180,22 +194,23 @@ while true; do
     (( BAR_W > 30 )) && BAR_W=30
 
     # CPU
-    CPU_USO=0
-    if $CPU_STAT_OK; then
-        CPU_CURR=$(awk '/^cpu /{print $2,$3,$4,$5,$6,$7,$8; exit}' /proc/stat)
-        CPU_USO=$(calc_cpu "$CPU_PREV" "$CPU_CURR")
-        CPU_PREV="$CPU_CURR"
+# CPU Data Gathering
+    if [ "$CPU_STAT_OK" = true ]; then
+        # Capturar estados actuales
+        mapfile -t CPU_CORES_CURR < <(grep '^cpu[0-9]' /proc/stat)
+
+        # Inicialización en primera corrida
+        if [[ ${#CPU_CORES_PREV[@]} -eq 0 ]]; then
+            CPU_CORES_PREV=("${CPU_CORES_CURR[@]}")
+            sleep 0.1
+            mapfile -t CPU_CORES_CURR < <(grep '^cpu[0-9]' /proc/stat)
+        fi
     fi
 
     # Frecuencia
-    CPU_FREQ_STR="N/A"
-    MHZ=$(grep 'cpu MHz' /proc/cpuinfo 2>/dev/null | head -1 | awk '{print $4}')
-    if [[ "$MHZ" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-        CPU_FREQ_STR=$(awk "BEGIN{printf \"%.1f GHz\", $MHZ/1000}")
-    else
-        CUR=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
-        [[ "$CUR" =~ ^[0-9]+$ ]] && CPU_FREQ_STR=$(awk "BEGIN{printf \"%.1f GHz\", $CUR/1000000}")
-    fi
+    # Obtener frecuencia actual promedio de todos los núcleos
+    CPU_FREQ_STR=$(awk '{sum+=$1} END {if (NR>0) printf "%.1f GHz", sum/NR/1000000; else printf "N/A"}' /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq 2>/dev/null)
+    [[ "$CPU_FREQ_STR" == "N/A" ]] && CPU_FREQ_STR=$(grep "cpu MHz" /proc/cpuinfo | head -1 | awk '{printf "%.1f GHz", $4/1000}')
 
     UPTIME=$(get_uptime)
     LOAD=$(get_load)
@@ -252,10 +267,26 @@ while true; do
     div
 
     # CPU
-    printf '%s▸ CPU%s  %s%s%s  %s@ %s%s\n' \
-        "$BOLD$Y" "$NC" "$D" "$CPU_MODEL" "$NC" "$D" "$CPU_FREQ_STR" "$NC"
-    campo  "Núcleos"   "${W}${CPU_CORES}${NC}  ${D}Temp:${NC} ${TEMP}"
-    fila_barra "Uso CPU" "$CPU_USO" ""
+    # Cabecera de CPU
+    printf '%s▸ CPU%s  %s%s%s  %s%s%s  %sTemp: %s%s\n' \
+        "$BOLD$Y" "$NC" "$D" "$CPU_MODEL" "$NC" "$G" "$CPU_FREQ_STR" "$NC" "$D" "$TEMP" "$NC"
+
+# Generar una barra por cada núcleo
+    if [ "$CPU_STAT_OK" = true ]; then
+        mapfile -t CPU_CORES_CURR < <(grep '^cpu[0-9]' /proc/stat)
+
+        for i in "${!CPU_CORES_CURR[@]}"; do
+            curr_data=$(echo "${CPU_CORES_CURR[$i]}" | cut -d' ' -f2-)
+            prev_data=$(echo "${CPU_CORES_PREV[$i]}" | cut -d' ' -f2-)
+
+            if [[ -n "$curr_data" && -n "$prev_data" ]]; then
+                CORE_USO=$(calc_cpu "$prev_data" "$curr_data")
+                # Solo el número del core para ahorrar espacio
+                fila_barra "cpu_$i" "$CORE_USO" ""
+            fi
+            CPU_CORES_PREV[$i]="${CPU_CORES_CURR[$i]}"
+        done
+    fi
     div
 
     # MEMORIA
