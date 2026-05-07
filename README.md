@@ -23,6 +23,11 @@ Navega a la carpeta y otorga los permisos necesarios al script:
 Inicia el monitor con el siguiente comando:
 ```./sysinfo.sh```
 
+Fallo de cierre Paquetes faltantes: En algunos sistemas Linux mínimos o Termux, podrías necesitar procps:
+
+Ubuntu/Debian: sudo apt install procps
+
+Termux: pkg install procps
 📋 Requisitos Previos
 Tener instalado Git (pkg install git en Termux o sudo apt install git en Ubuntu).
 Entorno de terminal Bash.
