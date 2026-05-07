@@ -30,6 +30,11 @@ comando en cadena
 git clone https://github.com/george0884/sysinfo-dashboard && cd sysinfo-dashboard && chmod +x sysinfo.sh && sudo ./sysinfo.sh
 ```
 
+Fallo de cierre Paquetes faltantes: En algunos sistemas Linux mínimos o Termux, podrías necesitar procps:
+
+Ubuntu/Debian: sudo apt install procps
+
+Termux: pkg install procps
 📋 Requisitos Previos
 Tener instalado Git (pkg install git en Termux o sudo apt install git en Ubuntu).
 Entorno de terminal Bash.
