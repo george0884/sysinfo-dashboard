@@ -16,7 +16,7 @@ Dar permisos de ejecución
 Navega a la carpeta y otorga los permisos necesarios al script:
 
 ```bash
-cd sysinfo-dashboard && sudo chmod+x sysinfo.sh
+cd sysinfo-dashboard && sudo chmod +x sysinfo.sh
 ```
 
 Inicia el monitor con el siguiente comando:
