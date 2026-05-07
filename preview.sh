@@ -71,17 +71,25 @@ else
 fi
 
 # ── Funciones ─────────────────────────────────────────────────────────────────
-#barra() {
- #   local pct=$1 ancho=$2
-  #  (( pct < 0   )) && pct=0
-   # (( pct > 100 )) && pct=100
-    #local relleno=$(( pct * ancho / 100 ))
-    #local vacio=$(( ancho - relleno ))
-    # Obtener RAM en GB con 2 decimales
-ram_total=$(free -m | awk '/Mem:/ { printf("%.2f", $2/1024) }')
-ram_used=$(free -m | awk '/Mem:/ { printf("%.2f", $3/1024) }')
+barra() {
+    local pct=$1 ancho=$2
+    (( pct < 0   )) && pct=0
+    (( pct > 100 )) && pct=100
+    local relleno=$(( pct * ancho / 100 ))
+    local vacio=$(( ancho - relleno ))
 
-echo "Memoria: ${ram_used}GB / ${ram_total}GB"
+    local color
+    if   (( pct >= 90 )); then color=$R
+    elif (( pct >= 70 )); then color=$Y
+    else                       color=$G
+    fi
+
+    printf '%s[%s%s' "$D" "$NC" "$color"
+    local i; for (( i=0; i<relleno; i++ )); do printf '█'; done
+    printf '%s' "$D"
+    for (( i=0; i<vacio;   i++ )); do printf '░'; done
+    printf '%s]%s' "$D" "$NC"
+}
 
     local color
     if   (( pct >= 90 )); then color=$R
@@ -203,11 +211,10 @@ while true; do
     (( BAR_W > 30 )) && BAR_W=30
 
     # CPU
-    CPU_USO=0
-    if $CPU_STAT_OK; then
-        CPU_CURR=$(awk '/^cpu /{print $2,$3,$4,$5,$6,$7,$8; exit}' /proc/stat)
-        CPU_USO=$(calc_cpu "$CPU_PREV" "$CPU_CURR")
-        CPU_PREV="$CPU_CURR"
+
+    
+    # En el renderizado (fila_barra), usa estas variables:
+    fila_barra "RAM ${D}${RAM_USA_GB}/${RAM_TOT_GB}GB${NC}" "$RAM_PCT" ""
     fi
 
     # Frecuencia
@@ -223,20 +230,10 @@ while true; do
     UPTIME=$(get_uptime)
     LOAD=$(get_load)
 
-    RAM_TOT=$(awk '/MemTotal/{print $2}'     /proc/meminfo 2>/dev/null || echo 1)
-    RAM_LIB=$(awk '/MemAvailable/{print $2}' /proc/meminfo 2>/dev/null || echo 0)
-    RAM_USA=$(( RAM_TOT - RAM_LIB ))
-    RAM_PCT=$(( RAM_USA * 100 / RAM_TOT ))
-    RAM_USA_MB=$(( RAM_USA / 1024 ))
-    RAM_TOT_MB=$(( RAM_TOT / 1024 ))
-
-    SWP_TOT=$(awk '/SwapTotal/{print $2}' /proc/meminfo 2>/dev/null || echo 0)
-    SWP_LIB=$(awk '/SwapFree/{print $2}'  /proc/meminfo 2>/dev/null || echo 0)
-    SWP_USA=$(( SWP_TOT - SWP_LIB ))
-    SWP_PCT=0
-    SWP_TOT_MB=$(( SWP_TOT / 1024 ))
-    SWP_USA_MB=$(( SWP_USA / 1024 ))
-    (( SWP_TOT > 0 )) && SWP_PCT=$(( SWP_USA * 100 / SWP_TOT ))
+    # --- MEMORIA ---
+    RAM_TOT_GB=$(awk '/MemTotal/{printf "%.2f", $2/1024/1024}' /proc/meminfo)
+    RAM_USA_GB=$(awk '/MemTotal/ {t=$2} /MemAvailable/ {a=$2; printf "%.2f", (t-a)/1024/1024}' /proc/meminfo)
+    RAM_PCT=$(awk '/MemTotal/ {t=$2} /MemAvailable/ {a=$2; printf "%d", (t-a)*100/t}' /proc/meminfo)
 
     read -r DSK_TOT DSK_USA DSK_PCT <<< "$(get_disco)"
 
@@ -277,13 +274,24 @@ while true; do
     # CPU
     printf '%s▸ CPU%s  %s%s%s  %s@ %s%s\n' \
         "$BOLD$Y" "$NC" "$D" "$CPU_MODEL" "$NC" "$D" "$CPU_FREQ_STR" "$NC"
-    campo  "Núcleos"   "${W}${CPU_CORES}${NC}  ${D}Temp:${NC} ${TEMP}"
-    fila_barra "Uso CPU" "$CPU_USO" ""
-    div
+        # Mostrar temperatura general arriba
+campo "Temp CPU" "$TEMP"
+
+# Mostrar cada core individual
+while read -r line; do
+    if [[ $line =~ ^cpu[0-9]+ ]]; then
+        core_id=$(echo $line | awk '{print $1}')
+        # Obtenemos el uso de ese core específico
+        core_usage=$(top -bn1 | grep "$core_id" | awk '{print $9}' | head -1 | cut -d. -f1)
+        # Si el valor está vacío, ponemos 0
+        [[ -z "$core_usage" ]] && core_usage=0
+        fila_barra "$core_id" "$core_usage" ""
+    fi
+done < /proc/stat
 
     # MEMORIA
     printf '%s▸ MEMORIA%s\n' "$BOLD$Y" "$NC"
-    fila_barra "RAM ${D}${RAM_USA_MB}/${RAM_TOT_MB}M${NC}" "$RAM_PCT" ""
+    fila_barra "RAM ${D}${RAM_USA_GB}/${RAM_TOT_GB}GB${NC}" "$RAM_PCT" ""
     if (( SWP_TOT_MB > 0 )); then
         fila_barra "SWAP ${D}${SWP_USA_MB}/${SWP_TOT_MB}M${NC}" "$SWP_PCT" ""
     else
